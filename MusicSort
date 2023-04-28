@@ -25,8 +25,10 @@ public:
     BTree() {
         root = createNode();
     }
-    void readFile(ifstream& myFile) {
-        // myFile.open("musicdata.txt");
+    void readFile() {
+        ifstream myFile;
+        myFile.open("musicdata.txt");
+
         string firstLine = "";
         if (myFile.is_open()) {
             getline(myFile, firstLine);
@@ -50,12 +52,16 @@ public:
         }
     }
     // finds if key is present
-    int search(string track) {
+    void search(string track) {
         NODE current = findLeaf(root, track);
-        if (current == NULL) {
-            return 1;
+        if (current->track == "") {
+            cout << "No match to the inputted song found!" << endl;
         }
-        return 0;
+        else {
+            cout << "Artist: " << current->artist << ", Track: " << current->track << ", Release Year: "
+                 << current->year << ", Genre: " << current->genre << endl;
+        }
+        return;
     }
     // creates new node where elements are set to -1 and child to null
     static NODE createNode() {
@@ -86,7 +92,6 @@ public:
             }
         }
     }
-
     // recursively searches the tree for the node where the key should be inserted
     NODE findLeaf(NODE n, string track) {
         if (n->child[0] == NULL) {
@@ -161,6 +166,7 @@ public:
         }
         if (!isFull(current)) {
             cout << "Element inserted\n";
+            int j = 0;
             for (string& i : current->element) {
                 if (i == "") {
                     i = track;
@@ -170,10 +176,11 @@ public:
                     current->genre = genre;
                     break;
                 }
+                j++;
                 max = i;
             }
             sortNode(current);
-            if (track > max && current->parent != NULL) {
+            if (j >= MAXIMUM && current->parent != NULL) {
                 updateParent(current->parent, track, max);
             }
             return;
@@ -194,31 +201,31 @@ public:
     }
 
     // splits into 2 nodes
-    void splitNode(NODE x) {
+    void splitNode(NODE n) {
         NODE current;
-        if (x->parent == NULL) {
+        if (n->parent == NULL) {
             current = createNode();
-            root = newRootNode(x, current);
+            root = newRootNode(n, current);
         }
         else {
-            if (isFull(x->parent)) {
-                splitNode(x->parent);
+            if (isFull(n->parent)) {
+                splitNode(n->parent);
             }
 
             current = createNode();
-            current->parent = x->parent;
-            appendToParent(x, current);
+            current->parent = n->parent;
+            appendToParent(n, current);
         }
         for (int i = 0; i < MINIMUM; i++) {
-            current->element[i] = x->element[MINIMUM + i];
-            x->element[MINIMUM + i] = -1;
-            current->child[i] = x->child[MINIMUM + i];
+            current->element[i] = n->element[MINIMUM + i];
+            n->element[MINIMUM + i] = -1;
+            current->child[i] = n->child[MINIMUM + i];
             if (current->child[i] != NULL) {
                 current->child[i]->parent = current;
             }
-            x->child[MINIMUM + i] = NULL;
+            n->child[MINIMUM + i] = NULL;
         }
-        sortNode(x->parent);
+        sortNode(n->parent);
     }
 
     void printTree() {
@@ -246,6 +253,7 @@ public:
                 f++;
             }
         }
+        cout << endl;
     }
 };
 
@@ -266,19 +274,20 @@ public:
     long numNodes = 0;
 
     /// Function Definitions:
-    // Helper function to insert to properly set the value of root and prevent an infinite loop.
+    // Helper function to insert to properly set the value of root and prevent an infinite loop. Also calls splay to move the inserted node to the top.
     void insert (string artist, string track, int year, string genre) {
-        // TODO: Are insert and splay gonna compete for making the root?
         root = insertFunction(root, artist, track, year, genre);
         root = splay(root, track);
     }
     // Method to construct the tree, adding new nodes.
     Node* insertFunction(Node* node, string artist, string track, int year, string genre) {
+        // If traverses to a space where a node can be added, add the node.
         if (node == nullptr) {
             numNodes++;
             Node *tempNode = new Node(artist, track, year, genre);
             return tempNode;
         }
+        // Traverse recursively left or right depending on where needs to travel to insert.
         if (track < node->track) {
             node->left = insertFunction(node->left, artist, track, year, genre);
         } else if (track > node->track) {
@@ -286,17 +295,21 @@ public:
         }
         return node;
     }
-    void readFile(ifstream& myFile) {
+    // Inserts every file from the musicdata.txt dataset into the program.
+    void readFile() {
+        // Reads the musicdata.txt file
+        ifstream myFile;
         myFile.open("musicdata.txt");
         string firstLine = "";
+
+        // While there are lines in the dataset left to read, continue to traverse and add each node. If repeat found, skip over it.
         if (myFile.is_open()) {
             getline(myFile, firstLine);
-            ///Node* currentNode; // Giving me segmentation fault for some reason, but should be similar node setup to Project 1. Lines that use currentNode commented with green
             while (myFile.good()) {
-                // Artist name - currentNode->artist = currentLine instead of push_back
+                // Artist name
                 string artistName = "";
                 getline(myFile, artistName, '\t');
-                // Track name - currentNode->track = currentLine instead of push_back
+                // Track name
                 string trackName = "";
                 getline(myFile, trackName, '\t');
                 // Year
@@ -305,75 +318,16 @@ public:
                 // Genre
                 string genreName = "";
                 getline(myFile, genreName);
-                if (isdigit(releaseYear[0])) {
-                    insert(artistName, trackName, stoi(releaseYear), genreName);
-                }
+                insert(artistName, trackName, stoi(releaseYear), genreName);
             }
         }
     }
-    // Helper function call for remove without needing to call a Node* in main.
-    void remove(bool isTrack, string removeThis) {
-        // Convert to track name if necessary - removeFunction only works with the names of tracks.
-        if (!isTrack) {
-            removeThis = search(false, removeThis);
-        }
-        root = removeFunction(root, removeThis);
-    }
-    // Method used to delete nodes from the tree.
-    Node* removeFunction(Node *node, string track) {
-        // Check to see if a tree exists.
-        if (node == nullptr) {
-            return node;
-        }
-        // Iterate through loop - go left if need a smaller ID, go right if need a bigger ID
-        if (node->track > track) {
-            node->left = removeFunction(node->left, track);
-        } else if (node->track < track) {
-            node->right = removeFunction(node->right, track);
-        } else {
-            numNodes--;
-            // If no children...
-            if (node->left == nullptr && node->right == nullptr) {
-                return nullptr;
-            }
-                // If only one child on left
-            else if (node->left != nullptr && node->right == nullptr) {
-                Node* tempNode = node->left;
-                free(node);
-                node = tempNode;
-            }
-                // If only one child on right
-            else if (node->left == nullptr && node->right != nullptr) {
-                Node* tempNode = node->right;
-                free(node);
-                node = tempNode;
-            }
-                // If two children
-            else {
-                Node* inorderSuccessor = findInorderSuccessor(node);
-                node->artist = inorderSuccessor->artist;
-                node->track = inorderSuccessor->track;
-                node->year = inorderSuccessor->year;
-                node->genre = inorderSuccessor->genre;
-                node->right = removeFunction(node->right, inorderSuccessor->track);
-                numNodes++;
-            }
-        }
-        return node;
-    }
-    // Helper function to get the inorder successor
-    Node* findInorderSuccessor(Node* node) {
-        Node* currentNode = node;
-        currentNode = currentNode->right;
-        while (currentNode->left != nullptr) {
-            currentNode = currentNode->left;
-        }
-        return currentNode;
-    }
-    // Helper function allowing a call of search without requiring the use of a node in main. Also used to print unsuccessful for faulty searches.
-    string search(bool returnAll, string searchThis) {
+    // Helper function allowing a call of search without requiring the use of a node in main. Also used to print unsuccessful for faulty searches and call the splay function.
+    string search(string searchThis) {
+        // Call the BST-style search function.
         bool matchFound = false;
-        searchFunction(root, returnAll, searchThis, matchFound);
+        searchFunction(root, searchThis, matchFound);
+        // If a match to the track to be searched is found, call the splay function. Otherwise, output that no match was found.
         if (!matchFound) {
             cout << "No match to the inputted song found!" << endl;
         }
@@ -382,47 +336,48 @@ public:
         }
         return searchThis;
     }
-    void searchFunction(Node *node, bool returnAll, string& searchThis, bool& matchFound) {
+    // BST-style search function which iterates through the list of nodes to output the node matching the input.
+    Node* searchFunction(Node *node, string& searchThis, bool& matchFound) {
+        Node* resultNode = nullptr;
         // Check to see if a tree exists.
         if (node != nullptr) {
             // If goal is to output all the data for the searched node
             if (searchThis == node->artist || searchThis == node->track || (isdigit(searchThis[0]) && stoi(searchThis) == node->year) || searchThis == node->genre) {
                 matchFound = true;
-                if (returnAll) {
-                    // Search, as used to relay song information
-                    cout << "Artist: " << node->artist << ", Track: " << node->track << ", Release Year: " << node->year << ", Genre: " << node->genre << endl;
-                    return;
-                }
-                else {
-                    // Search, as used to identify track name
-                    searchThis = node->track;
-                    return;
-                }
-                root = splay(node, node->track);
+                // Search, as used to relay song information
+                cout << "Artist: " << node->artist << ", Track: " << node->track << ", Release Year: " << node->year << ", Genre: " << node->genre << endl;
+                return resultNode;
             }
-            searchFunction(node->left, returnAll, searchThis, matchFound);
-            searchFunction(node->right, returnAll, searchThis, matchFound);
+            searchFunction(node->left, searchThis, matchFound);
+            searchFunction(node->right, searchThis, matchFound);
         }
     }
+    // Splay function - uses differing rotations to move the inputted track into the root of the tree.
     Node* splay(Node* node, string track) {
-        // If node doesnt exist or the track being sought is found recursively, return it.
-        if (node == nullptr || node->track == track) {
+        // If node doesnt exist, return the root (since root is always called first).
+        if (node == nullptr) {
             return node;
         }
+        // If inputted track is less than the node variable's track...
         if (node->track > track) {
+            // If the left node doesnt exist, return the current node.
             if (node->left == nullptr) {
                 return node;
             }
-            if (node->left->track > track) { // Zig Zig
+            // Perform Zig-Zig rotation - double right rotation with recursive splay call.
+            if (node->left->track > track) {
                 node->left->left = splay(node->left->left, track);
                 node = rotateRight(node);
             }
-            else if (node->left->track < track) { // Zig Zag
+            // Perform Zag-Zig rotation - shift position of involved nodes once left and once right. Recursive splay call.
+            else if (node->left->track < track) {
                 node->left->right = splay(node->left->right, track);
                 if (node->left->right != nullptr) {
                     node->left = rotateLeft(node->left);
                 }
             }
+            // Final two if statements serve two roles - complete Zig-Zig and Zag-Zig rotations,
+            // As well as cover both the base case again by returning the current node and zig rotation by only rotating right.
             if (node->left != nullptr) {
                 return rotateRight(node);
             }
@@ -430,20 +385,26 @@ public:
                 return node;
             }
         }
+        // If inputted track is greater than the node variable's track...
         else {
+            // If the left node doesnt exist, return the current node.
             if (node->right == nullptr) {
                 return node;
             }
+            // Perform Zig-Zag rotation - rotates nodes right once and left once.
             if (node->right->track > track) { // Zig Zag
                 node->right->left = splay(node->right->left, track);
                 if (node->right->left != nullptr) {
                     node->right = rotateRight(node->right);
                 }
             }
-            else if (node->right->track < track) { // Zag Zag
+            // Perform Zag-Zag rotation - rotate nodes left twice.
+            else if (node->right->track < track) {
                 node->right->right = splay(node->right->right, track);
                 node = rotateLeft(node);
             }
+            // Final two if statements serve two roles - complete Zig-Zag and Zag-Zag rotations,
+            // As well as cover both the base case again by returning the current node and zig rotation by only rotating left.
             if (node->right != nullptr) {
                 return rotateLeft(node);
             }
@@ -474,9 +435,12 @@ public:
         node->left = nodeLR;
         return nodeL;
     }
+    // Function used to output the result of preorder traversal
     void printPreorder() {
+        // Use findPreorder to fill vector with the results of a preorder traversal.
         vector<Node*> preorderResults;
         findPreorder(root, preorderResults);
+        // Output results
         if (preorderResults.size() == numNodes && root != nullptr) {
             for (int i = 0; i < preorderResults.size(); i++) {
                 cout << "Artist: " << preorderResults[i]->artist << ", Track: " << preorderResults[i]->track << ", Release Year: " << preorderResults[i]->year << ", Genre: " << preorderResults[i]->genre << endl;
@@ -487,67 +451,23 @@ public:
             cout << "unsuccessful" << endl;
         }
     }
+    // Function performing actual preorder traversal.
     void findPreorder(Node* node, vector<Node*>& preorderResults) {
-        // Check to see if a tree exists.
+        // Perform recursive traversal.
         if (node != nullptr) {
             preorderResults.push_back(node);
             findPreorder(node->left, preorderResults);
             findPreorder(node->right, preorderResults);
         }
     }
-    void printInorder() {
-        vector<Node*> inorderResults;
-        findInorder(root, inorderResults);
-        if (inorderResults.size() == numNodes && root != nullptr) {
-            for (int i = 0; i < inorderResults.size(); i++) {
-                cout << "Artist: " << inorderResults[i]->artist << ", Track: " << inorderResults[i]->track << ", Release Year: " << inorderResults[i]->year << ", Genre: " << inorderResults[i]->genre << endl;
-            }
-            return;
-        }
-        else {
-            cout << "unsuccessful" << endl;
-        }
-    }
-    void findInorder(Node* node, vector<Node*>& inorderResults) {
-        // Check to see if a tree exists.
-        if (node != nullptr) {
-            findInorder(node->left, inorderResults);
-            inorderResults.push_back(node);
-            findInorder(node->right, inorderResults);
-        }
-    }
-    void printPostorder() {
-        vector<Node*> postorderResults;
-        findPostorder(root, postorderResults);
-        if (postorderResults.size() == numNodes && root != nullptr) {
-            for (int i = 0; i < postorderResults.size(); i++) {
-                cout << "Artist: " << postorderResults[postorderResults.size() - 1]->artist << ", Track: " << postorderResults[postorderResults.size() - 1]->track << ", Release Year: " << postorderResults[postorderResults.size() - 1]->year << ", Genre: " << postorderResults[postorderResults.size() - 1]->genre << endl;
-            }
-            return;
-        }
-        else {
-            cout << "unsuccessful" << endl;
-        }
-    }
-    void findPostorder(Node* node, vector<Node*>& postorderResults) {
-        // Check to see if a tree exists.
-        if (node != nullptr) {
-            findPostorder(node->left, postorderResults);
-            findPostorder(node->right, postorderResults);
-            postorderResults.push_back(node);
-        }
-    }
 };
 
 int main() {
-    ifstream myFile;
-    myFile.open("musicdata.txt");
-
     cout << "Music Sorter and Organizer" << endl;
     cout << "Created by Ryan Coveny and Emily Tran" << endl << endl;
 
     cout << "Which data structure would you like to use for implementation?" << endl;
-    cout << "1. B+ Tree" << endl;
+    cout << "1. B Tree" << endl;
     cout << "2. Splay Tree" << endl;
 
     string input;
@@ -565,22 +485,27 @@ int main() {
     if (input == "1") {
         // B Tree code
         BTree bCall;
-        bCall.readFile(myFile);
 
         while (true) {
-            cout << endl << "What would you like to do? (Input a number)" << endl;
-            cout << "1. Add a new song to the database." << endl;
-            cout << "2. Display all music in the database." << endl;
-            cout << "3. Search within the database." << endl;
-            cout << "4. Exit program." << endl;
+            cout << "What would you like to do? (Input a number)" << endl;
+            cout << "1. Read info from the database." << endl;
+            cout << "2. Add a new song to the database." << endl;
+            cout << "3. Display all music in the database." << endl;
+            cout << "4. Search within the database." << endl;
+            cout << "5. Exit program." << endl;
 
             input = "";
             while (true) {
                 getline(cin, input);
                 if (input == "1") {
+                    bCall.readFile();
+                    cout << "File read!" << endl;
+                    break;
+                }
+                else if (input == "2") {
                     string trackName;
                     string artistName;
-                    int releaseYear;
+                    string releaseYear;
                     string genreName;
 
                     cout << "What is the name of the song to be inserted?" << endl;
@@ -588,30 +513,38 @@ int main() {
                     cout << "What is the name of the song's artist?" << endl;
                     getline(cin, artistName);
                     cout << "What year was the song released?" << endl;
-                    cin >> releaseYear;
-                    cin.ignore();
+                    while (true) {
+                        cin >> releaseYear;
+                        cin.ignore();
+                        if (!isdigit(releaseYear[0])) {
+                            cout << "Input a valid numerical year" << endl;
+                        }
+                        else {
+                            break;
+                        }
+                    }
                     cout << "What genre does the song belong to?" << endl;
                     getline(cin, genreName);
 
-                    bCall.insertElement(artistName, trackName, releaseYear, genreName);
+                    bCall.insertElement(artistName, trackName, stoi(releaseYear), genreName);
                     break;
                 }
-                else if (input == "2") {
+                else if (input == "3") {
                     cout << "Displaying the database's information..." << endl;
 
                     bCall.printTree();
                     break;
                 }
-                else if (input == "3") {
+                else if (input == "4") {
                     string trackName;
 
                     cout << "What is the name of the song to be searched for?" << endl;
                     getline(cin, trackName);
 
-                    //bCall.search(trackName);
+                    bCall.search(trackName);
                     break;
                 }
-                else if (input == "4") {
+                else if (input == "5") {
                     cout << "Closing program.";
                     return 0;
                 }
@@ -624,22 +557,27 @@ int main() {
     else {
         // Splay code
         SplayTree splayCall;
-        splayCall.readFile(myFile);
 
         while (true) {
-            cout << endl << "What would you like to do? (Input a number)" << endl;
-            cout << "1. Add a new song to the database." << endl;
-            cout << "2. Display all music in the database." << endl;
-            cout << "3. Search within the database." << endl;
-            cout << "4. Exit program." << endl;
+            cout << "What would you like to do? (Input a number)" << endl;
+            cout << "1. Read info from the database." << endl;
+            cout << "2. Add a new song to the database." << endl;
+            cout << "3. Display all music in the database." << endl;
+            cout << "4. Search within the database." << endl;
+            cout << "5. Exit program." << endl;
 
             input = "";
             while (true) {
                 getline(cin, input);
                 if (input == "1") {
+                    splayCall.readFile();
+                    cout << "File read!" << endl;
+                    break;
+                }
+                if (input == "2") {
                     string trackName;
                     string artistName;
-                    int releaseYear;
+                    string releaseYear;
                     string genreName;
 
                     cout << "What is the name of the song to be inserted?" << endl;
@@ -647,32 +585,40 @@ int main() {
                     cout << "What is the name of the song's artist?" << endl;
                     getline(cin, artistName);
                     cout << "What year was the song released?" << endl;
-                    cin >> releaseYear;
-                    cin.ignore();
+                    while (true) {
+                        cin >> releaseYear;
+                        cin.ignore();
+                        if (!isdigit(releaseYear[0])) {
+                            cout << "Input a valid numerical year" << endl;
+                        }
+                        else {
+                            break;
+                        }
+                    }
                     cout << "What genre does the song belong to?" << endl;
                     getline(cin, genreName);
 
-                    splayCall.insert(artistName, trackName, releaseYear, genreName);
+                    splayCall.insert(artistName, trackName, stoi(releaseYear), genreName);
                     break;
                 }
-                else if (input == "2") {
+                else if (input == "3") {
                     cout << "How would you like the database to be displayed?" << endl;
 
                     cout << "Displaying the database's information..." << endl;
 
-                    splayCall.printInorder();
+                    splayCall.printPreorder();
                     break;
                 }
-                else if (input == "3") {
+                else if (input == "4") {
                     string trackName;
 
                     cout << "What is the name of the song to be searched for?" << endl;
                     getline(cin, trackName);
 
-                    splayCall.search(true, trackName);
+                    splayCall.search(trackName);
                     break;
                 }
-                else if (input == "4") {
+                else if (input == "5") {
                     cout << "Closing program.";
                     return 0;
                 }
